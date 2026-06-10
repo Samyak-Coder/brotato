@@ -1,18 +1,25 @@
-import { View, Platform, StyleSheet, Text } from 'react-native';
-import Brotata from './game';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Wall from './wall';
+import { useEffect } from 'react';
+import * as ScreenOrientation from "expo-screen-orientation";
 
 export default function HomeScreen() {
+  useEffect(() => {
+    const setOrientation = async () => {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.LANDSCAPE
+      );
+    };
+  
+    setOrientation();
+  
+    return () => {
+      void ScreenOrientation.unlockAsync();
+    };
+  }, []);
   return (
-    <View>
-      <Brotata />
-    </View>
+    <GestureHandlerRootView>
+      <Wall />
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-});
