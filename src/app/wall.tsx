@@ -1,39 +1,37 @@
-import { Canvas, Circle, Group, Rect } from "@shopify/react-native-skia";
+import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
   useFrameCallback,
   useSharedValue,
 } from "react-native-reanimated";
 
-import { CircleInterface } from "../types";
+import { Joystick } from "@/components/Joystick";
+import { View } from "react-native";
 import {
-  _spacingForWalls,
-  _spacingForWallsW,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
-  WALL_THICKNESS,
+  WALL_THICKNESS
 } from "../constants";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { animate } from "../logic";
-import { View } from "react-native";
-import { Joystick } from "@/components/Joystick";
+import { CircleInterface } from "../types";
+import { enemyVel } from "@/utils/utils";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
 export default function Wall() {
   const playerX = useSharedValue(PLAY_WIDTH / 2);
   const playerY = useSharedValue(PLAY_HEIGHT / 2);
-  // const startX = useSharedValue(PLAY_WIDTH / 2);
-  // const startY = useSharedValue(PLAY_HEIGHT / 2);
-
   const velocityX = useSharedValue(0);
   const velocityY = useSharedValue(0);
 
   const cameraX = useSharedValue(-(PLAY_WIDTH / 2) + SCREEN_WIDTH / 2);
   const cameraY = useSharedValue(-(PLAY_HEIGHT / 2) + SCREEN_HEIGHT / 2);
+
+  const enemyX = useSharedValue(0);
+  const enemyY = useSharedValue(0);
 
   const DEADZONE = SCREEN_WIDTH * 0.1;
 
@@ -48,19 +46,6 @@ export default function Wall() {
     type: "Circle",
     id: 0,
   };
-
-  // got this from cladue, you can change it as you would like to
-  // const gesture = Gesture.Pan()
-  //   .onBegin(() => {
-  //     startX.value = playerX.value;
-  //     startY.value = playerY.value;
-  //   })
-  //   .onUpdate((e) => {
-  //     playerX.value = startX.value + e.translationX;
-  //     playerY.value = startY.value + e.translationY;
-  //     // ✅ No clamping here — your useFrameCallback already calls
-  //     //    resolveWallCollision every frame, so it's handled there
-  //   });
 
   function handlePlayerMove(data: any) {
     // console.log(data.position.x - 53, data.position.y - 44);
@@ -82,7 +67,7 @@ export default function Wall() {
     // playerY.value = playerY.value - (data.position.y - 44) / SPEED_FACTOR;
   }
 
-  // 5. Pass the player into your existing animate call. Claude the goat
+  //Pass the player into your existing animate call. Claude the goat
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
@@ -93,6 +78,8 @@ export default function Wall() {
 
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
+
+    
 
     if (playerScreenX < DEADZONE)
       cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
@@ -106,14 +93,13 @@ export default function Wall() {
       cameraY.value =
         cameraY.value - (playerScreenY - (SCREEN_HEIGHT - DEADZONE));
 
+      
+enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx
+    enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy
     // Clamp: camera can't show beyond world edges
-    cameraX.value = Math.min(
-      0,
-      Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
+    cameraX.value = Math.min(0, Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
     );
-    cameraY.value = Math.min(
-      0,
-      Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
+    cameraY.value = Math.min(0, Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
     );
   });
 
@@ -194,6 +180,13 @@ export default function Wall() {
             cy={CircleObject.y}
             r={RADIUS}
             color={"cyan"}
+          />
+          <Rect 
+            x={enemyX}
+            y={enemyY}
+            width={10}
+            height={10}
+            color={"red"}
           />
         </Canvas>
       </Animated.View>
