@@ -1,6 +1,7 @@
 import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
+  useDerivedValue,
   useFrameCallback,
   useSharedValue,
 } from "react-native-reanimated";
@@ -8,6 +9,7 @@ import Animated, {
 import { Joystick } from "@/components/Joystick";
 import { View } from "react-native";
 import {
+  ENEMY_RADIUS,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
@@ -17,7 +19,9 @@ import {
 } from "../constants";
 import { animate } from "../logic";
 import { CircleInterface } from "../types";
-import { enemyVel } from "@/utils/utils";
+import { calcDistance, enemyVel } from "@/utils/utils";
+import { useState } from "react";
+import { runOnJS } from "react-native-worklets";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
@@ -32,6 +36,12 @@ export default function Wall() {
 
   const enemyX = useSharedValue(0);
   const enemyY = useSharedValue(0);
+
+  //collision
+  
+  //used for testing
+  const userColor= useSharedValue("cyan")
+  const animatedUserColor = useDerivedValue(()=>userColor.value)
 
   const DEADZONE = SCREEN_WIDTH * 0.1;
 
@@ -63,11 +73,9 @@ export default function Wall() {
       velocityX.value = dx / SPEED_FACTOR;
       velocityY.value = -dy / SPEED_FACTOR; // Invert Y if needed
     }
-    // playerX.value = playerX.value + (data.position.x - 53) / SPEED_FACTOR;
-    // playerY.value = playerY.value - (data.position.y - 44) / SPEED_FACTOR;
   }
 
-  //Pass the player into your existing animate call. Claude the goat
+  //Pass the player into your existing animate call. 
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
@@ -79,6 +87,7 @@ export default function Wall() {
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
 
+    
     
 
     if (playerScreenX < DEADZONE)
@@ -94,9 +103,9 @@ export default function Wall() {
         cameraY.value - (playerScreenY - (SCREEN_HEIGHT - DEADZONE));
 
       
-enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx
+    enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx
     enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy
-    // Clamp: camera can't show beyond world edges
+
     cameraX.value = Math.min(0, Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
     );
     cameraY.value = Math.min(0, Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
@@ -179,13 +188,12 @@ enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx
             cx={CircleObject.x}
             cy={CircleObject.y}
             r={RADIUS}
-            color={"cyan"}
+            color={animatedUserColor}
           />
-          <Rect 
-            x={enemyX}
-            y={enemyY}
-            width={10}
-            height={10}
+          <Circle 
+            cx={enemyX}
+            cy={enemyY}
+            r={ENEMY_RADIUS}
             color={"red"}
           />
         </Canvas>

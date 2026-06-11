@@ -1,5 +1,5 @@
   import { ENEMY_SPEED } from "@/constants";
-  import { SharedValue } from "react-native-reanimated";
+  import { SharedValue, useSharedValue } from "react-native-reanimated";
 
   export const calcDistance = (
     p1: { x: number; y: number },
@@ -68,3 +68,23 @@
     if (b.y < 0) b.y += 150;
     return b;
   };
+
+  export const isCollision = (
+    enemy: { x: number; y: number },
+    player: { x: number; y: number },
+    radius: number
+  ) =>{
+
+    const testX = useSharedValue(enemy.x)
+    const testY = useSharedValue(enemy.y)
+
+    if(enemy.x<(player.x-radius)) testX.value = player.x-radius
+        else if(enemy.x<(player.x+radius)) testX.value = player.x+radius
+        if(enemy.y>(player.y-radius)) testY.value = player.y-radius
+        else if(enemy.y>(player.y+radius)) testY.value = player.y+radius
+    
+        const distForCollison = calcDistance({x: enemy.x, y: enemy.y}, {x: testX.value, y:testY.value})
+        
+        if(distForCollison <= radius) return true
+        else return false
+  }

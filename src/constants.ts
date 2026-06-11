@@ -13,3 +13,4 @@ export const RADIUS = 20;
 export const _spacingForWallsW = PLAY_WIDTH - SCREEN_WIDTH;
 export const _spacingForWalls = PLAY_HEIGHT - SCREEN_HEIGHT;
 export const ENEMY_SPEED = 2;
+export const ENEMY_RADIUS = 15;
