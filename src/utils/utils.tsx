@@ -1,14 +1,15 @@
-  import { BULLET_RADIUS, ENEMY_RADIUS, ENEMY_SPEED, PLAY_HEIGHT, PLAY_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, WALL_THICKNESS } from "@/constants";
-import { BulletInterface } from "@/types";
   import { SharedValue, useSharedValue } from "react-native-reanimated";
+  import { BULLET_RADIUS, ENEMY_RADIUS, ENEMY_SPEED, PLAY_HEIGHT, PLAY_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, WALL_THICKNESS } from "@/constants";
+  import { BulletInterface } from "@/types";
 
   export const calcDistance = (
-    p1: { x: number; y: number },
-    p2: { x: number; y: number },
-  ) => {
+      p1: { x: number; y: number },
+      p2: { x: number; y: number },
+    ) => {
     "worklet"
+      "worklet"
     const dx = p2.x - p1.x;
-    const dy = p2.y - p1.y;
+      const dy = p2.y - p1.y;
 
     return Math.sqrt(dx * dx + dy * dy);
   };

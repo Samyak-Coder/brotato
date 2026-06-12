@@ -14,6 +14,7 @@ export const _spacingForWallsW = PLAY_WIDTH - SCREEN_WIDTH;
 export const _spacingForWalls = PLAY_HEIGHT - SCREEN_HEIGHT;
 export const ENEMY_SPEED = 2;
 export const ENEMY_RADIUS = 15;
+export const MAX_ENEMIES = 100;
 
 export const MAX_BULLETS = 20;
 export const BULLET_SPEED = 5;
