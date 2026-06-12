@@ -1,4 +1,5 @@
-import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
+//touch wall
+import { Canvas, Circle, dist, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
   useDerivedValue,
@@ -7,22 +8,24 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Joystick } from "@/components/Joystick";
-import { View } from "react-native";
+import { calcDistance, enemyVel, handleBullet } from "@/utils/utils";
+import { Text, TouchableOpacity, View } from "react-native";
 import {
+  ACTIVATION_R,
+  BULLET_RADIUS,
+  BULLET_SPEED,
   ENEMY_RADIUS,
-  MAX_ENEMIES,
+  MAX_BULLETS,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
-  WALL_THICKNESS,
+  SHOT_INTERVAL,
+  WALL_THICKNESS
 } from "../constants";
-import { animate, animateEnemies } from "../logic";
-import { CircleInterface } from "../types";
-import { calcDistance, enemyVel } from "@/utils/utils";
-import { useEffect, useState } from "react";
-import { runOnJS } from "react-native-worklets";
+import { animate } from "../logic";
+import { BulletInterface, CircleInterface } from "../types";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
@@ -35,16 +38,16 @@ export default function Wall() {
   const cameraX = useSharedValue(-(PLAY_WIDTH / 2) + SCREEN_WIDTH / 2);
   const cameraY = useSharedValue(-(PLAY_HEIGHT / 2) + SCREEN_HEIGHT / 2);
 
-  const enemyXs = useSharedValue<number[]>([]);
-  const enemyYs = useSharedValue<number[]>([]);
+  const enemyX = useSharedValue(0);
+  const enemyY = useSharedValue(0);
 
-  //collision
+  const lastShot = useSharedValue(0)
 
-  //used for testing
-  const userColor = useSharedValue("cyan");
-  const animatedUserColor = useDerivedValue(() => userColor.value);
+  const userColor= useSharedValue("cyan")
+  const animatedUserColor = useDerivedValue(()=>userColor.value)
 
   const DEADZONE = SCREEN_WIDTH * 0.1;
+  
 
   const CircleObject: CircleInterface = {
     x: playerX,
@@ -52,61 +55,41 @@ export default function Wall() {
     r: RADIUS,
     vx: 0,
     vy: 0,
-    ax: 0,
-    ay: 0,
     type: "Circle",
     id: 0,
   };
 
-  // Spawns enemies at the beginning
+  //used Array.from to create new arrays (total of max_bullets) with the defaults
+  const bulletPool: BulletInterface[] = Array.from({ length: MAX_BULLETS }, (_, i) => ({
+  x: useSharedValue(-1000),
+  y: useSharedValue(-1000),
+  vx: useSharedValue(0),
+  vy: useSharedValue(0),
+  active: useSharedValue(false),
+  id: i,
+}));
 
-  useEffect(() => {
-    spawnEnemies(50);
-  }, []);
+const hitCount = useSharedValue(0); 
+const hitCountText = useDerivedValue(()=>hitCount.value)
 
-  function spawnEnemies(count: number) {
-    const xs: number[] = [];
-    const ys: number[] = [];
-
-    for (let i = 0; i < count; i++) {
-      const edge = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
-
-      switch (edge) {
-        case 0: // top
-          xs.push(Math.random() * PLAY_WIDTH);
-          ys.push(WALL_THICKNESS + ENEMY_RADIUS);
-          break;
-        case 1: // bottom
-          xs.push(Math.random() * PLAY_WIDTH);
-          ys.push(PLAY_HEIGHT - WALL_THICKNESS - ENEMY_RADIUS);
-          break;
-        case 2: // left
-          xs.push(WALL_THICKNESS + ENEMY_RADIUS);
-          ys.push(Math.random() * PLAY_HEIGHT);
-          break;
-        case 3: // right
-          xs.push(PLAY_WIDTH - WALL_THICKNESS - ENEMY_RADIUS);
-          ys.push(Math.random() * PLAY_HEIGHT);
-          break;
-      }
+  const shoot = (distToEnemy: number, dx: number, dy: number) =>{
+    "worklet"
+    const bullet = bulletPool.find((e)=> !e.active.value)
+    if (bullet) {
+      const dist = distToEnemy || 1; // avoid div by zero
+      bullet.x.value = playerX.value;
+      bullet.y.value = playerY.value;
+      bullet.vx.value = (dx / dist) * BULLET_SPEED;
+      bullet.vy.value = (dy / dist) * BULLET_SPEED;
+      bullet.active.value = true;
     }
-
-    enemyXs.value = xs;
-    enemyYs.value = ys;
   }
-
-  const enemyPositions = Array.from({ length: MAX_ENEMIES }, (_, i) =>
-    useDerivedValue(() => ({
-      x: enemyXs.value[i] ?? -9999, // off-screen if not spawned
-      y: enemyYs.value[i] ?? -9999,
-    })),
-  );
 
   function handlePlayerMove(data: any) {
     // console.log(data.position.x - 53, data.position.y - 44);
     // velocityX.value = (data.position.x - 53) / SPEED_FACTOR;
     // velocityY.value = (data.position.y - 44) / SPEED_FACTOR;
-
+    
     const dx = data.position.x - 53;
     const dy = data.position.y - 44;
 
@@ -120,7 +103,7 @@ export default function Wall() {
     }
   }
 
-  //Pass the player into your existing animate call.
+
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
@@ -131,6 +114,31 @@ export default function Wall() {
 
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
+
+    // autoshoot -----
+    const dx = enemyX.value - playerX.value;
+    const dy = enemyY.value - playerY.value;
+    const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+
+
+    // const distToEnemy = calcDistance({x: playerX.value, y: playerY.value}, {x: enemyX.value, y: enemyY.value})
+    lastShot.value += frameInfo.timeSincePreviousFrame
+
+    if (distToEnemy < ACTIVATION_R && lastShot.value > SHOT_INTERVAL) {
+    lastShot.value = 0;
+
+    const bullet = bulletPool.find((b) => !b.active.value);
+    if (bullet) {
+      const dist = distToEnemy || 1; // avoid div by zero
+      bullet.x.value = playerX.value;
+      bullet.y.value = playerY.value;
+      bullet.vx.value = (dx / dist) * BULLET_SPEED;
+      bullet.vy.value = (dy / dist) * BULLET_SPEED;
+      bullet.active.value = true;
+    }
+  }
+
+    handleBullet(bulletPool, {x: enemyX.value, y: enemyY.value}, hitCount)
 
     if (playerScreenX < DEADZONE)
       cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
@@ -144,21 +152,13 @@ export default function Wall() {
       cameraY.value =
         cameraY.value - (playerScreenY - (SCREEN_HEIGHT - DEADZONE));
 
-    // Old code:
+      
+    enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx
+    enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy
 
-    // enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx;
-    // enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy;
-
-    // New code:
-    animateEnemies(enemyXs, enemyYs, playerX, playerY);
-
-    cameraX.value = Math.min(
-      0,
-      Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
+    cameraX.value = Math.min(0, Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
     );
-    cameraY.value = Math.min(
-      0,
-      Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
+    cameraY.value = Math.min(0, Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
     );
   });
 
@@ -187,6 +187,30 @@ export default function Wall() {
           }}
         />
       </View>
+
+          {/* for testing bullets */}
+          <View style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
+      <Text
+      style={{ color: "white", fontSize: 18 }}
+      >{`Hit count: ${hitCountText}`}</Text>
+    </View>
+
+    {/* Shoot button */}
+    {/* <TouchableOpacity
+      onPress={shoot}
+      style={{
+        position: "absolute",
+        bottom: 180,
+        left: 50,
+        zIndex: 1000,
+        backgroundColor: "red",
+        padding: 20,
+        borderRadius: 50,
+      }}
+    >
+      <Text style={{ color: "white" }}>SHOOT</Text>
+    </TouchableOpacity> */}
+
       <Animated.View style={cameraStyle}>
         <Canvas style={{ width: PLAY_WIDTH, height: PLAY_HEIGHT }}>
           <Rect
@@ -240,15 +264,23 @@ export default function Wall() {
             r={RADIUS}
             color={animatedUserColor}
           />
-          {enemyPositions.map((pos, i) => (
-            <Circle
-              key={i}
-              cx={useDerivedValue(() => pos.value.x)}
-              cy={useDerivedValue(() => pos.value.y)}
-              r={ENEMY_RADIUS}
-              color="red"
-            />
-          ))}
+          <Circle 
+            cx={enemyX}
+            cy={enemyY}
+            r={ENEMY_RADIUS}
+            color={"red"}
+          />
+
+          {bulletPool.map((b) => (
+          <Circle
+            key={b.id}
+            cx={b.x}
+            cy={b.y}
+            r={BULLET_RADIUS}
+            color="yellow"
+          />
+        ))}
+
         </Canvas>
       </Animated.View>
       {/* </GestureDetector> */}

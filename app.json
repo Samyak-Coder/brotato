@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "game_dvm_UI",
-    "slug": "game_dvm_UI",
+    "name": "game_dvm",
+    "slug": "game_dvm",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

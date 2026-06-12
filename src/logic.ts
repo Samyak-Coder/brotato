@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { SharedValue } from "react-native-reanimated";
 import {
   _spacingForWalls,
@@ -12,24 +13,43 @@ import { CircleInterface, ShapeInterface } from "./types";
 
 export const resolveWallCollision = (o: ShapeInterface) => {
   "worklet";
+=======
+import { _spacingForWalls, _spacingForWallsW, PLAY_HEIGHT, PLAY_WIDTH, WALL_THICKNESS } from "./constants";
+import { CircleInterface, ShapeInterface } from "./types";
+
+
+export const resolveWallCollision = (o: ShapeInterface) => {
+  "worklet"
+>>>>>>> origin/main
   const circle = o as CircleInterface;
   const r = circle.r;
 
   // Left wall
+<<<<<<< HEAD
   if (circle.x.value - r < WALL_THICKNESS) circle.x.value = WALL_THICKNESS + r;
+=======
+  if (circle.x.value - r < WALL_THICKNESS)
+    circle.x.value = WALL_THICKNESS + r;
+>>>>>>> origin/main
 
   // Right wall
   if (circle.x.value + r > PLAY_WIDTH - WALL_THICKNESS)
     circle.x.value = PLAY_WIDTH - WALL_THICKNESS - r;
 
   // Top wall
+<<<<<<< HEAD
   if (circle.y.value - r < WALL_THICKNESS) circle.y.value = WALL_THICKNESS + r;
+=======
+  if (circle.y.value - r < WALL_THICKNESS)
+    circle.y.value = WALL_THICKNESS + r;
+>>>>>>> origin/main
 
   // Bottom wall
   if (circle.y.value + r > PLAY_HEIGHT - WALL_THICKNESS)
     circle.y.value = PLAY_HEIGHT - WALL_THICKNESS - r;
 };
 
+<<<<<<< HEAD
 // In logic.ts
 export const animateEnemies = (
   enemyXs: SharedValue<number[]>,
@@ -90,3 +110,18 @@ export const animate = (
     }
   }
 };
+=======
+export const animate = (
+    objects: ShapeInterface[],
+    timeSincePreviousFrame: number,
+    enemyCount: number
+)=>{
+    "worklet"
+//what
+    for(const o of objects){
+        if(o.type === "Circle"){
+            resolveWallCollision(o);
+        }
+    }
+}
+>>>>>>> origin/main
