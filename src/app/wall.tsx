@@ -1,14 +1,16 @@
-import { Canvas, Circle, Group, Rect } from "@shopify/react-native-skia";
+import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
+  useDerivedValue,
   useFrameCallback,
   useSharedValue,
 } from "react-native-reanimated";
 
-import { CircleInterface } from "../types";
+import { Joystick } from "@/components/Joystick";
+import { View } from "react-native";
 import {
-  _spacingForWalls,
-  _spacingForWallsW,
+  ENEMY_RADIUS,
+  MAX_ENEMIES,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
@@ -16,24 +18,31 @@ import {
   SCREEN_WIDTH,
   WALL_THICKNESS,
 } from "../constants";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { animate } from "../logic";
-import { View } from "react-native";
-import { Joystick } from "@/components/Joystick";
+import { animate, animateEnemies } from "../logic";
+import { CircleInterface } from "../types";
+import { calcDistance, enemyVel } from "@/utils/utils";
+import { useEffect, useState } from "react";
+import { runOnJS } from "react-native-worklets";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
 export default function Wall() {
   const playerX = useSharedValue(PLAY_WIDTH / 2);
   const playerY = useSharedValue(PLAY_HEIGHT / 2);
-  // const startX = useSharedValue(PLAY_WIDTH / 2);
-  // const startY = useSharedValue(PLAY_HEIGHT / 2);
-
   const velocityX = useSharedValue(0);
   const velocityY = useSharedValue(0);
 
   const cameraX = useSharedValue(-(PLAY_WIDTH / 2) + SCREEN_WIDTH / 2);
   const cameraY = useSharedValue(-(PLAY_HEIGHT / 2) + SCREEN_HEIGHT / 2);
+
+  const enemyXs = useSharedValue<number[]>([]);
+  const enemyYs = useSharedValue<number[]>([]);
+
+  //collision
+
+  //used for testing
+  const userColor = useSharedValue("cyan");
+  const animatedUserColor = useDerivedValue(() => userColor.value);
 
   const DEADZONE = SCREEN_WIDTH * 0.1;
 
@@ -49,18 +58,49 @@ export default function Wall() {
     id: 0,
   };
 
-  // got this from cladue, you can change it as you would like to
-  // const gesture = Gesture.Pan()
-  //   .onBegin(() => {
-  //     startX.value = playerX.value;
-  //     startY.value = playerY.value;
-  //   })
-  //   .onUpdate((e) => {
-  //     playerX.value = startX.value + e.translationX;
-  //     playerY.value = startY.value + e.translationY;
-  //     // ✅ No clamping here — your useFrameCallback already calls
-  //     //    resolveWallCollision every frame, so it's handled there
-  //   });
+  // Spawns enemies at the beginning
+
+  useEffect(() => {
+    spawnEnemies(50);
+  }, []);
+
+  function spawnEnemies(count: number) {
+    const xs: number[] = [];
+    const ys: number[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const edge = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
+
+      switch (edge) {
+        case 0: // top
+          xs.push(Math.random() * PLAY_WIDTH);
+          ys.push(WALL_THICKNESS + ENEMY_RADIUS);
+          break;
+        case 1: // bottom
+          xs.push(Math.random() * PLAY_WIDTH);
+          ys.push(PLAY_HEIGHT - WALL_THICKNESS - ENEMY_RADIUS);
+          break;
+        case 2: // left
+          xs.push(WALL_THICKNESS + ENEMY_RADIUS);
+          ys.push(Math.random() * PLAY_HEIGHT);
+          break;
+        case 3: // right
+          xs.push(PLAY_WIDTH - WALL_THICKNESS - ENEMY_RADIUS);
+          ys.push(Math.random() * PLAY_HEIGHT);
+          break;
+      }
+    }
+
+    enemyXs.value = xs;
+    enemyYs.value = ys;
+  }
+
+  const enemyPositions = Array.from({ length: MAX_ENEMIES }, (_, i) =>
+    useDerivedValue(() => ({
+      x: enemyXs.value[i] ?? -9999, // off-screen if not spawned
+      y: enemyYs.value[i] ?? -9999,
+    })),
+  );
 
   function handlePlayerMove(data: any) {
     // console.log(data.position.x - 53, data.position.y - 44);
@@ -78,11 +118,9 @@ export default function Wall() {
       velocityX.value = dx / SPEED_FACTOR;
       velocityY.value = -dy / SPEED_FACTOR; // Invert Y if needed
     }
-    // playerX.value = playerX.value + (data.position.x - 53) / SPEED_FACTOR;
-    // playerY.value = playerY.value - (data.position.y - 44) / SPEED_FACTOR;
   }
 
-  // 5. Pass the player into your existing animate call. Claude the goat
+  //Pass the player into your existing animate call.
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
@@ -106,7 +144,14 @@ export default function Wall() {
       cameraY.value =
         cameraY.value - (playerScreenY - (SCREEN_HEIGHT - DEADZONE));
 
-    // Clamp: camera can't show beyond world edges
+    // Old code:
+
+    // enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx;
+    // enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy;
+
+    // New code:
+    animateEnemies(enemyXs, enemyYs, playerX, playerY);
+
     cameraX.value = Math.min(
       0,
       Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
@@ -193,8 +238,17 @@ export default function Wall() {
             cx={CircleObject.x}
             cy={CircleObject.y}
             r={RADIUS}
-            color={"cyan"}
+            color={animatedUserColor}
           />
+          {enemyPositions.map((pos, i) => (
+            <Circle
+              key={i}
+              cx={useDerivedValue(() => pos.value.x)}
+              cy={useDerivedValue(() => pos.value.y)}
+              r={ENEMY_RADIUS}
+              color="red"
+            />
+          ))}
         </Canvas>
       </Animated.View>
       {/* </GestureDetector> */}

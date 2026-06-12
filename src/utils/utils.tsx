@@ -1,48 +1,90 @@
-export const calcDistance = (
-  p1: { x: number; y: number },
-  p2: { x: number; y: number },
-) => {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
+  import { ENEMY_SPEED } from "@/constants";
+  import { SharedValue, useSharedValue } from "react-native-reanimated";
 
-  return Math.sqrt(dx * dx + dy * dy);
-};
+  export const calcDistance = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+  ) => {
+    "worklet"
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
 
-/**
- *
- * @param p1
- * @param p2
- * @returns Angle in degrees
- */
-export const calcAngle = (
-  p1: { x: number; y: number },
-  p2: { x: number; y: number },
-) => {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
 
-  const rawAngle = radiansToDegrees(Math.atan2(dy, dx));
-  if (rawAngle < 0) return 180 - Math.abs(rawAngle);
-  else return rawAngle + 180;
-};
+  export const enemyVel=(
+    playerX:SharedValue<number>,
+    playerY:SharedValue<number>,
+    enemyX: SharedValue<number>,
+    enemyY: SharedValue<number>
+  )=>{
+    "worklet"
+    const distance = calcDistance(
+      {x: playerX.value, y: playerY.value}, 
+      {x: enemyX.value, y:enemyY.value}
+    )
 
-export const degreesToRadians = (a: number) => {
-  return a * (Math.PI / 180);
-};
+    const vx = (playerX.value-enemyX.value)/distance * ENEMY_SPEED
+    const vy = (playerY.value-enemyY.value)/distance * ENEMY_SPEED
+    
+    return {vx: vx, vy: vy}
+  }
 
-export const radiansToDegrees = (a: number) => {
-  return a * (180 / Math.PI);
-};
+  /**
+   *
+   * @param p1
+   * @param p2
+   * @returns Angle in degrees
+   */
+  export const calcAngle = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+  ) => {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
 
-export const findCoord = (
-  position: { x: number; y: number },
-  distance: number,
-  angle: number,
-) => {
-  const b = { x: 0, y: 0 };
-  angle = degreesToRadians(angle);
-  b.x = position.x + distance * Math.cos(angle);
-  b.y = position.y + distance * Math.sin(angle);
-  if (b.y < 0) b.y += 150;
-  return b;
-};
+    const rawAngle = radiansToDegrees(Math.atan2(dy, dx));
+    if (rawAngle < 0) return 180 - Math.abs(rawAngle);
+    else return rawAngle + 180;
+  };
+
+  export const degreesToRadians = (a: number) => {
+    return a * (Math.PI / 180);
+  };
+
+  export const radiansToDegrees = (a: number) => {
+    return a * (180 / Math.PI);
+  };
+
+  export const findCoord = (
+    position: { x: number; y: number },
+    distance: number,
+    angle: number,
+  ) => {
+    const b = { x: 0, y: 0 };
+    angle = degreesToRadians(angle);
+    b.x = position.x + distance * Math.cos(angle);
+    b.y = position.y + distance * Math.sin(angle);
+    if (b.y < 0) b.y += 150;
+    return b;
+  };
+
+  export const isCollision = (
+    enemy: { x: number; y: number },
+    player: { x: number; y: number },
+    radius: number
+  ) =>{
+
+    const testX = useSharedValue(enemy.x)
+    const testY = useSharedValue(enemy.y)
+
+    if(enemy.x<(player.x-radius)) testX.value = player.x-radius
+        else if(enemy.x<(player.x+radius)) testX.value = player.x+radius
+        if(enemy.y>(player.y-radius)) testY.value = player.y-radius
+        else if(enemy.y>(player.y+radius)) testY.value = player.y+radius
+    
+        const distForCollison = calcDistance({x: enemy.x, y: enemy.y}, {x: testX.value, y:testY.value})
+        
+        if(distForCollison <= radius) return true
+        else return false
+  }

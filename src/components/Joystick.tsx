@@ -17,8 +17,8 @@ export const Joystick = ({
   style,
   ...props
 }: IReactNativeJoystickProps) => {
-  const wrapperRadius = radius;
-  const nippleRadius = wrapperRadius / 3;
+  const wrapperRadius = radius; // hey I see a vision for name here...
+  const nippleRadius = wrapperRadius / 3; //goated var name
 
   const [x, setX] = useState(wrapperRadius - nippleRadius);
   const [y, setY] = useState(wrapperRadius - nippleRadius);
@@ -113,6 +113,7 @@ export const Joystick = ({
     .onStart(handleTouchStart)
     .onEnd(handleTouchEnd)
     .onTouchesMove(handleTouchMove);
+
   const styles = useMemo(
     () =>
       StyleSheet.create({
