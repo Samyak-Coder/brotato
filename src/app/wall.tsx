@@ -1,4 +1,5 @@
-import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
+//touch wall
+import { Canvas, Circle, dist, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
   useDerivedValue,
@@ -7,21 +8,24 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Joystick } from "@/components/Joystick";
-import { View } from "react-native";
+import { calcDistance, enemyVel, handleBullet } from "@/utils/utils";
+import { Text, TouchableOpacity, View } from "react-native";
 import {
+  ACTIVATION_R,
+  BULLET_RADIUS,
+  BULLET_SPEED,
   ENEMY_RADIUS,
+  MAX_BULLETS,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
+  SHOT_INTERVAL,
   WALL_THICKNESS
 } from "../constants";
 import { animate } from "../logic";
-import { CircleInterface } from "../types";
-import { calcDistance, enemyVel } from "@/utils/utils";
-import { useState } from "react";
-import { runOnJS } from "react-native-worklets";
+import { BulletInterface, CircleInterface } from "../types";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
@@ -37,13 +41,13 @@ export default function Wall() {
   const enemyX = useSharedValue(0);
   const enemyY = useSharedValue(0);
 
-  //collision
-  
-  //used for testing
+  const lastShot = useSharedValue(0)
+
   const userColor= useSharedValue("cyan")
   const animatedUserColor = useDerivedValue(()=>userColor.value)
 
   const DEADZONE = SCREEN_WIDTH * 0.1;
+  
 
   const CircleObject: CircleInterface = {
     x: playerX,
@@ -51,17 +55,41 @@ export default function Wall() {
     r: RADIUS,
     vx: 0,
     vy: 0,
-    ax: 0,
-    ay: 0,
     type: "Circle",
     id: 0,
   };
+
+  //used Array.from to create new arrays (total of max_bullets) with the defaults
+  const bulletPool: BulletInterface[] = Array.from({ length: MAX_BULLETS }, (_, i) => ({
+  x: useSharedValue(-1000),
+  y: useSharedValue(-1000),
+  vx: useSharedValue(0),
+  vy: useSharedValue(0),
+  active: useSharedValue(false),
+  id: i,
+}));
+
+const hitCount = useSharedValue(0); 
+const hitCountText = useDerivedValue(()=>hitCount.value)
+
+  const shoot = (distToEnemy: number, dx: number, dy: number) =>{
+    "worklet"
+    const bullet = bulletPool.find((e)=> !e.active.value)
+    if (bullet) {
+      const dist = distToEnemy || 1; // avoid div by zero
+      bullet.x.value = playerX.value;
+      bullet.y.value = playerY.value;
+      bullet.vx.value = (dx / dist) * BULLET_SPEED;
+      bullet.vy.value = (dy / dist) * BULLET_SPEED;
+      bullet.active.value = true;
+    }
+  }
 
   function handlePlayerMove(data: any) {
     // console.log(data.position.x - 53, data.position.y - 44);
     // velocityX.value = (data.position.x - 53) / SPEED_FACTOR;
     // velocityY.value = (data.position.y - 44) / SPEED_FACTOR;
-
+    
     const dx = data.position.x - 53;
     const dy = data.position.y - 44;
 
@@ -75,7 +103,7 @@ export default function Wall() {
     }
   }
 
-  //Pass the player into your existing animate call. 
+
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
@@ -87,8 +115,30 @@ export default function Wall() {
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
 
-    
-    
+    // autoshoot -----
+    const dx = enemyX.value - playerX.value;
+    const dy = enemyY.value - playerY.value;
+    const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+
+
+    // const distToEnemy = calcDistance({x: playerX.value, y: playerY.value}, {x: enemyX.value, y: enemyY.value})
+    lastShot.value += frameInfo.timeSincePreviousFrame
+
+    if (distToEnemy < ACTIVATION_R && lastShot.value > SHOT_INTERVAL) {
+    lastShot.value = 0;
+
+    const bullet = bulletPool.find((b) => !b.active.value);
+    if (bullet) {
+      const dist = distToEnemy || 1; // avoid div by zero
+      bullet.x.value = playerX.value;
+      bullet.y.value = playerY.value;
+      bullet.vx.value = (dx / dist) * BULLET_SPEED;
+      bullet.vy.value = (dy / dist) * BULLET_SPEED;
+      bullet.active.value = true;
+    }
+  }
+
+    handleBullet(bulletPool, {x: enemyX.value, y: enemyY.value}, hitCount)
 
     if (playerScreenX < DEADZONE)
       cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
@@ -137,6 +187,30 @@ export default function Wall() {
           }}
         />
       </View>
+
+          {/* for testing bullets */}
+          <View style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
+      <Text
+      style={{ color: "white", fontSize: 18 }}
+      >{`Hit count: ${hitCountText}`}</Text>
+    </View>
+
+    {/* Shoot button */}
+    {/* <TouchableOpacity
+      onPress={shoot}
+      style={{
+        position: "absolute",
+        bottom: 180,
+        left: 50,
+        zIndex: 1000,
+        backgroundColor: "red",
+        padding: 20,
+        borderRadius: 50,
+      }}
+    >
+      <Text style={{ color: "white" }}>SHOOT</Text>
+    </TouchableOpacity> */}
+
       <Animated.View style={cameraStyle}>
         <Canvas style={{ width: PLAY_WIDTH, height: PLAY_HEIGHT }}>
           <Rect
@@ -196,6 +270,17 @@ export default function Wall() {
             r={ENEMY_RADIUS}
             color={"red"}
           />
+
+          {bulletPool.map((b) => (
+          <Circle
+            key={b.id}
+            cx={b.x}
+            cy={b.y}
+            r={BULLET_RADIUS}
+            color="yellow"
+          />
+        ))}
+
         </Canvas>
       </Animated.View>
       {/* </GestureDetector> */}

@@ -1,13 +1,11 @@
 import { SharedValue } from "react-native-reanimated";
-import { ViewProps } from "react-native";
+import { Share, ViewProps } from "react-native";
 
 type SharedVariant = "Circle";
 
 export interface ShapeInterface {
   x: SharedValue<number>;
   y: SharedValue<number>;
-  ax: number;
-  ay: number;
   vx: number;
   vy: number;
   type: SharedVariant;
@@ -38,4 +36,13 @@ export interface IReactNativeJoystickProps extends ViewProps {
   onStop?: (e: IReactNativeJoystickEvent) => void;
   radius?: number;
   color?: string;
+}
+
+export interface BulletInterface {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  vx: SharedValue<number>;
+  vy: SharedValue<number>;
+  active: SharedValue<boolean>;  
+  id: number
 }

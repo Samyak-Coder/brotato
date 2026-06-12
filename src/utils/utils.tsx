@@ -1,4 +1,5 @@
-  import { ENEMY_SPEED } from "@/constants";
+  import { BULLET_RADIUS, ENEMY_RADIUS, ENEMY_SPEED, PLAY_HEIGHT, PLAY_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, WALL_THICKNESS } from "@/constants";
+import { BulletInterface } from "@/types";
   import { SharedValue, useSharedValue } from "react-native-reanimated";
 
   export const calcDistance = (
@@ -70,21 +71,53 @@
   };
 
   export const isCollision = (
-    enemy: { x: number; y: number },
-    player: { x: number; y: number },
-    radius: number
-  ) =>{
+  enemy: { x: number; y: number },
+  player: { x: number; y: number },
+  radius: number
+) => {
+  "worklet"
+  let testX = enemy.x;  // plain variables, not shared values
+  let testY = enemy.y;
 
-    const testX = useSharedValue(enemy.x)
-    const testY = useSharedValue(enemy.y)
+  if (enemy.x < player.x - radius) testX = player.x - radius;
+  else if (enemy.x < player.x + radius) testX = player.x + radius;
+  if (enemy.y > player.y - radius) testY = player.y - radius;
+  else if (enemy.y > player.y + radius) testY = player.y + radius;
 
-    if(enemy.x<(player.x-radius)) testX.value = player.x-radius
-        else if(enemy.x<(player.x+radius)) testX.value = player.x+radius
-        if(enemy.y>(player.y-radius)) testY.value = player.y-radius
-        else if(enemy.y>(player.y+radius)) testY.value = player.y+radius
-    
-        const distForCollison = calcDistance({x: enemy.x, y: enemy.y}, {x: testX.value, y:testY.value})
-        
-        if(distForCollison <= radius) return true
-        else return false
+  const dist = calcDistance({ x: enemy.x, y: enemy.y }, { x: testX, y: testY });
+  return dist <= radius;
+};
+
+  export const handleBullet = (
+  bulletPool: BulletInterface[],
+  enemy: { x: number; y: number },
+  hitCount: SharedValue<number>
+) => {
+  "worklet"
+  for (const b of bulletPool) {
+    if (!b.active.value) continue;
+
+    // Move
+    b.x.value += b.vx.value;
+    b.y.value += b.vy.value;
+
+
+    if (
+      b.x.value < WALL_THICKNESS || b.x.value > PLAY_WIDTH - WALL_THICKNESS || b.y.value < WALL_THICKNESS || b.y.value > PLAY_HEIGHT - WALL_THICKNESS
+    ) {
+      b.active.value = false;
+      b.x.value = -1000;
+      b.y.value = -1000;
+      continue;
+    }
+
+    const dist = calcDistance({x: enemy.x, y: enemy.y}, {x: b.x.value, y: b.y.value});
+
+    if (dist < BULLET_RADIUS + ENEMY_RADIUS) {
+      hitCount.value += 1;
+      b.active.value = false;
+      b.x.value = -1000;
+      b.y.value = -1000;
+    }
   }
+};
