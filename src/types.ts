@@ -39,3 +39,12 @@ export interface IReactNativeJoystickProps extends ViewProps {
   radius?: number;
   color?: string;
 }
+
+export interface BulletInterface {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  vx: SharedValue<number>;
+  vy: SharedValue<number>;
+  active: SharedValue<boolean>;
+  id: number;
+}

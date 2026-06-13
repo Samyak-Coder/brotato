@@ -7,24 +7,28 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Joystick } from "@/components/Joystick";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import {
+  ACTIVATION_R,
+  BULLET_RADIUS,
+  BULLET_SPEED,
   ENEMY_RADIUS,
+  MAX_BULLETS,
   MAX_ENEMIES,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
   SCREEN_HEIGHT,
   SCREEN_WIDTH,
+  SHOT_INTERVAL,
   WALL_THICKNESS,
 } from "../constants";
 import { animate, animateEnemies } from "../logic";
-import { CircleInterface } from "../types";
-import { calcDistance, enemyVel } from "@/utils/utils";
-import { useEffect, useState } from "react";
-import { runOnJS } from "react-native-worklets";
+import { BulletInterface, CircleInterface } from "../types";
+import { handleBullet } from "@/utils/utils";
+import { useEffect } from "react";
 
-let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
+let SPEED_FACTOR = 8;
 
 export default function Wall() {
   const playerX = useSharedValue(PLAY_WIDTH / 2);
@@ -38,9 +42,10 @@ export default function Wall() {
   const enemyXs = useSharedValue<number[]>([]);
   const enemyYs = useSharedValue<number[]>([]);
 
-  //collision
+  const lastShot = useSharedValue(0);
+  const hitCount = useSharedValue(0);
+  const hitCountText = useDerivedValue(() => String(hitCount.value));
 
-  //used for testing
   const userColor = useSharedValue("cyan");
   const animatedUserColor = useDerivedValue(() => userColor.value);
 
@@ -58,10 +63,38 @@ export default function Wall() {
     id: 0,
   };
 
-  // Spawns enemies at the beginning
+  // ----- Bullet pool -----
+  // Rules for hooks in loops: hooks must be called unconditionally at the top
+  // level, so we create a fixed-size pool here (MAX_BULLETS entries) using
+  // individual useSharedValue calls — no dynamic allocation inside the render.
+  const bulletPool: BulletInterface[] = Array.from(
+    { length: MAX_BULLETS },
+    (_, i) => ({
+      x: useSharedValue(-1000),
+      y: useSharedValue(-1000),
+      vx: useSharedValue(0),
+      vy: useSharedValue(0),
+      active: useSharedValue(false),
+      id: i,
+    }),
+  );
 
+  // ----- Enemy positions for rendering -----
+  // Fixed-size derived values, one per MAX_ENEMIES slot.
+  // Off-screen (-9999) when that slot has no enemy.
+  // NOTE: hooks must NOT be called inside .map() — we use Array.from with a
+  // fixed length so the number of hook calls is always MAX_ENEMIES, stable
+  // across renders.
+  const enemyPositions = Array.from({ length: MAX_ENEMIES }, (_, i) =>
+    useDerivedValue(() => ({
+      x: enemyXs.value[i] ?? -9999,
+      y: enemyYs.value[i] ?? -9999,
+    })),
+  );
+
+  // ----- Spawn -----
   useEffect(() => {
-    spawnEnemies(50);
+    spawnEnemies(40);
   }, []);
 
   function spawnEnemies(count: number) {
@@ -69,8 +102,7 @@ export default function Wall() {
     const ys: number[] = [];
 
     for (let i = 0; i < count; i++) {
-      const edge = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
-
+      const edge = Math.floor(Math.random() * 4);
       switch (edge) {
         case 0: // top
           xs.push(Math.random() * PLAY_WIDTH);
@@ -95,62 +127,37 @@ export default function Wall() {
     enemyYs.value = ys;
   }
 
-  const enemyPositions = Array.from({ length: MAX_ENEMIES }, (_, i) =>
-    useDerivedValue(() => ({
-      x: enemyXs.value[i] ?? -9999, // off-screen if not spawned
-      y: enemyYs.value[i] ?? -9999,
-    })),
-  );
-
   function handlePlayerMove(data: any) {
-    // console.log(data.position.x - 53, data.position.y - 44);
-    // velocityX.value = (data.position.x - 53) / SPEED_FACTOR;
-    // velocityY.value = (data.position.y - 44) / SPEED_FACTOR;
-
     const dx = data.position.x - 53;
     const dy = data.position.y - 44;
-
-    // Apply a small deadzone to prevent "ghost" movement
     if (Math.abs(dx) < 5 && Math.abs(dy) < 5) {
       velocityX.value = 0;
       velocityY.value = 0;
     } else {
       velocityX.value = dx / SPEED_FACTOR;
-      velocityY.value = -dy / SPEED_FACTOR; // Invert Y if needed
+      velocityY.value = -dy / SPEED_FACTOR;
     }
   }
 
-  //Pass the player into your existing animate call.
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
 
+    // 1. Wall collision + player movement
     animate([CircleObject], frameInfo.timeSincePreviousFrame, 0);
-
-    const playerScreenX = CircleObject.x.value + cameraX.value;
-    const playerScreenY = CircleObject.y.value + cameraY.value;
-
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
 
-    if (playerScreenX < DEADZONE)
-      cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
+    // 2. Camera tracking
+    const playerScreenX = CircleObject.x.value + cameraX.value;
+    const playerScreenY = CircleObject.y.value + cameraY.value;
+
+    if (playerScreenX < DEADZONE) cameraX.value += DEADZONE - playerScreenX;
     else if (playerScreenX > SCREEN_WIDTH - DEADZONE)
-      cameraX.value =
-        cameraX.value - (playerScreenX - (SCREEN_WIDTH - DEADZONE));
+      cameraX.value -= playerScreenX - (SCREEN_WIDTH - DEADZONE);
 
-    if (playerScreenY < DEADZONE)
-      cameraY.value = cameraY.value + (DEADZONE - playerScreenY);
+    if (playerScreenY < DEADZONE) cameraY.value += DEADZONE - playerScreenY;
     else if (playerScreenY > SCREEN_HEIGHT - DEADZONE)
-      cameraY.value =
-        cameraY.value - (playerScreenY - (SCREEN_HEIGHT - DEADZONE));
-
-    // Old code:
-
-    // enemyX.value += enemyVel(playerX, playerY, enemyX, enemyY).vx;
-    // enemyY.value += enemyVel(playerX, playerY, enemyX, enemyY).vy;
-
-    // New code:
-    animateEnemies(enemyXs, enemyYs, playerX, playerY);
+      cameraY.value -= playerScreenY - (SCREEN_HEIGHT - DEADZONE);
 
     cameraX.value = Math.min(
       0,
@@ -160,35 +167,77 @@ export default function Wall() {
       0,
       Math.max(-(PLAY_HEIGHT - SCREEN_HEIGHT), cameraY.value),
     );
+
+    // 3. Enemy movement (flocking + chase)
+    animateEnemies(enemyXs, enemyYs, playerX, playerY);
+
+    // 4. Auto-aim: shoot at the nearest enemy within ACTIVATION_R
+    lastShot.value += frameInfo.timeSincePreviousFrame;
+
+    if (lastShot.value > SHOT_INTERVAL && enemyXs.value.length > 0) {
+      // Find nearest enemy
+      let nearestDist = Infinity;
+      let nearestDx = 0;
+      let nearestDy = 0;
+
+      for (let i = 0; i < enemyXs.value.length; i++) {
+        const dx = enemyXs.value[i] - playerX.value;
+        const dy = enemyYs.value[i] - playerY.value;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearestDx = dx;
+          nearestDy = dy;
+        }
+      }
+
+      if (nearestDist < ACTIVATION_R) {
+        const bullet = bulletPool.find((b) => !b.active.value);
+        if (bullet) {
+          const d = nearestDist || 1;
+          bullet.x.value = playerX.value;
+          bullet.y.value = playerY.value;
+          bullet.vx.value = (nearestDx / d) * BULLET_SPEED;
+          bullet.vy.value = (nearestDy / d) * BULLET_SPEED;
+          bullet.active.value = true;
+          lastShot.value = 0;
+        }
+      }
+    }
+
+    // 5. Move bullets + check hits against enemy array
+    handleBullet(bulletPool, enemyXs, enemyYs, hitCount);
   });
 
-  //Anim styles for camera (View)
   const cameraStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: cameraX.value }, { translateY: cameraY.value }],
   }));
 
   return (
-    // <GestureDetector gesture={gesture}>
     <View>
+      {/* Joystick */}
       <View
-        style={{
-          position: "absolute",
-          bottom: 180,
-          right: 50,
-          zIndex: 1000,
-        }}
+        style={{ position: "absolute", bottom: 180, right: 50, zIndex: 1000 }}
       >
         <Joystick
           onMove={(data) => handlePlayerMove(data)}
           onStop={() => {
-            // Explicitly kill the velocity when the user stops touching
             velocityX.value = 0;
             velocityY.value = 0;
           }}
         />
       </View>
+
+      {/* Hit counter */}
+      <View style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
+        <Text
+          style={{ color: "white", fontSize: 18 }}
+        >{`Kills: ${hitCountText}`}</Text>
+      </View>
+
       <Animated.View style={cameraStyle}>
         <Canvas style={{ width: PLAY_WIDTH, height: PLAY_HEIGHT }}>
+          {/* Background */}
           <Rect
             x={0}
             y={0}
@@ -197,7 +246,7 @@ export default function Wall() {
             color="#786658"
           />
 
-          {/* Top wall */}
+          {/* Walls */}
           <Rect
             x={0}
             y={0}
@@ -205,8 +254,6 @@ export default function Wall() {
             height={WALL_THICKNESS}
             color="#3a2e28"
           />
-
-          {/* Bottom wall */}
           <Rect
             x={0}
             y={PLAY_HEIGHT - WALL_THICKNESS}
@@ -214,8 +261,6 @@ export default function Wall() {
             height={WALL_THICKNESS}
             color="#3a2e28"
           />
-
-          {/* Left wall */}
           <Rect
             x={0}
             y={0}
@@ -223,8 +268,6 @@ export default function Wall() {
             height={PLAY_HEIGHT}
             color="#3a2e28"
           />
-
-          {/* Right wall */}
           <Rect
             x={PLAY_WIDTH - WALL_THICKNESS}
             y={0}
@@ -233,13 +276,15 @@ export default function Wall() {
             color="#3a2e28"
           />
 
-          {/* User sprite */}
+          {/* Player */}
           <Circle
             cx={CircleObject.x}
             cy={CircleObject.y}
             r={RADIUS}
             color={animatedUserColor}
           />
+
+          {/* Enemies — read from fixed-size derived value slots */}
           {enemyPositions.map((pos, i) => (
             <Circle
               key={i}
@@ -249,9 +294,19 @@ export default function Wall() {
               color="red"
             />
           ))}
+
+          {/* Bullets */}
+          {bulletPool.map((b) => (
+            <Circle
+              key={b.id}
+              cx={b.x}
+              cy={b.y}
+              r={BULLET_RADIUS}
+              color="yellow"
+            />
+          ))}
         </Canvas>
       </Animated.View>
-      {/* </GestureDetector> */}
     </View>
   );
 }
