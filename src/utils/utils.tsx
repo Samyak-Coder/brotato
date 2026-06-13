@@ -1,14 +1,16 @@
   import { SharedValue, useSharedValue } from "react-native-reanimated";
   import { BULLET_RADIUS, ENEMY_RADIUS, ENEMY_SPEED, OUT_OF_THE_BOX, PLAY_HEIGHT, PLAY_WIDTH, RADIUS, SCREEN_HEIGHT, SCREEN_WIDTH, WALL_THICKNESS } from "@/constants";
   import { BulletInterface } from "@/types";
+  import { useLost } from "@/store/store"; 
+import { runOnJS } from "react-native-worklets";
 
+  const updateToLost = useLost((s:any)=>s.updateToLost)
 
   export const calcDistance = (
       p1: { x: number; y: number },
       p2: { x: number; y: number },
     ) => {
     "worklet"
-      "worklet"
     const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
 
@@ -117,7 +119,7 @@ export const enemyCollision =(
           enemyYs.value = []
 
           XP.value = 3
-          return true
+          runOnJS(updateToLost)
           
         }
         

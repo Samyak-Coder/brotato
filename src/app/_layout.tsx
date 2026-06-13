@@ -5,13 +5,18 @@ import { useEffect } from "react";
 
 export default function TabLayout() {
   useEffect(() => {
-    NavigationBar.setVisibilityAsync("hidden");gi
+    NavigationBar.setVisibilityAsync("hidden");
   }, []);
 
   return (
     <>
-      <StatusBar hidden={true} />
-      <Stack screenOptions={{ headerShown: false }} />
+
+      <Stack screenOptions={{ headerShown: false }} >
+        <Stack.Screen name={'index'} />
+        <Stack.Screen name={'gameOver'} />
+        <Stack.Screen name={'game'} />
+      </Stack>
+
     </>
   );
 }

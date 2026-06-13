@@ -32,6 +32,7 @@ import { runOnJS } from "react-native-worklets";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { router } from "expo-router";
 import gameOver from "./gameOver";
+import { useLost } from "@/store/store";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
@@ -49,15 +50,10 @@ export default function Wall() {
   const enemyYs = useSharedValue<number[]>([]);
 
   //collision
-  const lastHit = useSharedValue(0)
-  //used for testing
-  const userColor = useSharedValue("cyan");
-  const animatedUserColor = useDerivedValue(() => userColor.value);
-
-  // const enemyX = useSharedValue(0); these are the niggas who have seen time
-  // const enemyY = useSharedValue(0);
-
   const lastShot = useSharedValue(0)
+  const lost = useLost((s:any)=>s.lost)
+  const gameEnded = useSharedValue(false)
+  //player move
   const DEADZONE = SCREEN_WIDTH * 0.1;
   
   //joystick detectionn ----------
@@ -189,6 +185,7 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
   // 5. Pass the player into your existing animate call. Claude the goat
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
+    if(gameEnded.value) return;
 
     animate([CircleObject], frameInfo.timeSincePreviousFrame, 0);
 
@@ -236,7 +233,7 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
 
     handleBullet(bulletPool, enemyXs, enemyYs, hitCount)
 
-    enemyCollision(enemyXs, enemyYs, playerX, playerY, XP, bulletPool, lastHit, frameInfo.timeSincePreviousFrame)
+    enemyCollision(enemyXs, enemyYs, playerX, playerY, XP, bulletPool, lastShot, frameInfo.timeSincePreviousFrame)
 
     if (playerScreenX < DEADZONE)
       cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
@@ -258,7 +255,8 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
     // New code:
     animateEnemies(enemyXs, enemyYs, playerX, playerY);
 
-    if(enemyXs.value.length === 0 && XP.value >0){
+    if(enemyXs.value.length === 0 && XP.value>=1 && !gameEnded.value){
+      gameEnded.value = true
       runOnJS(goToGameOver)()
     }
 
@@ -353,7 +351,7 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
             cx={CircleObject.x}
             cy={CircleObject.y}
             r={RADIUS}
-            color={animatedUserColor}
+            color={"cyan"}
           />
           {enemyPositions.map((pos, i) => (
             <Circle

@@ -3,9 +3,10 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useRef } from 'react';
 import * as ScreenOrientation from "expo-screen-orientation";
 import {ConfettiMethods, PIConfetti, PIConfettiMethods} from "react-native-fast-confetti";
+import { useLost } from '@/store/store';
 
 export default function GameOver(){
-
+    const func = useLost((s:any)=>s.updateToWin)
     useEffect(() => {
         const setOrientation = async () => {
           await ScreenOrientation.lockAsync(
@@ -18,8 +19,6 @@ export default function GameOver(){
         };
     }, []);
 
-  const {lost} = useLocalSearchParams()
-  const isLost = (lost === "false") ? false : true
 
     return(
         <View style={styles.container} >
