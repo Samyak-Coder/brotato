@@ -12,7 +12,8 @@ export const PLAY_HEIGHT = SCREEN_HEIGHT * 1.3;
 export const RADIUS = 20;
 export const _spacingForWallsW = PLAY_WIDTH - SCREEN_WIDTH;
 export const _spacingForWalls = PLAY_HEIGHT - SCREEN_HEIGHT;
-export const ENEMY_SPEED = 2;
+
+export const ENEMY_SPEED = 1;
 export const ENEMY_RADIUS = 15;
 export const MAX_ENEMIES = 100;
 
