@@ -42,7 +42,7 @@ export const animateEnemies = (
   const ys = enemyYs.value.slice();
   const count = xs.length;
   const SEPARATION_RADIUS = ENEMY_RADIUS * 2.5;
-  const SEPARATION_FORCE = 1.2;
+  const SEPARATION_FORCE = 1.1;
 
   for (let i = 0; i < count; i++) {
     // --- Chase player ---

@@ -17,8 +17,10 @@ export const ENEMY_RADIUS = 15;
 export const MAX_ENEMIES = 100;
 
 export const MAX_BULLETS = 20;
-export const BULLET_SPEED = 5;
+export const BULLET_SPEED = 4;
 export const BULLET_RADIUS = 8;
 
 export const SHOT_INTERVAL = 800
 export const ACTIVATION_R = SCREEN_WIDTH/2
+
+export const OUT_OF_THE_BOX = -9999;

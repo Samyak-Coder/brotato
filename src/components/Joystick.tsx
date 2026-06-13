@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from "react";
-import { View, StyleSheet, Platform } from "react-native";
+import { View, StyleSheet } from "react-native";
 import * as utils from "../utils/utils";
 import {
   Gesture,
@@ -27,7 +27,7 @@ export const Joystick = ({
     (event: GestureTouchEvent) => {
       const e = event.changedTouches[0];
       const fingerX = e.x;
-      const fingerY = Platform.OS === "web" ? wrapperRadius * 2 - e.y : e.y;
+      const fingerY = e.y;
       let coordinates = {
         x: fingerX - nippleRadius,
         y: fingerY - nippleRadius,

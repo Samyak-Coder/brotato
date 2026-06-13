@@ -1,4 +1,4 @@
-import { Canvas, Circle, Rect } from "@shopify/react-native-skia";
+import { Canvas, Circle, dist, Rect } from "@shopify/react-native-skia";
 import Animated, {
   useAnimatedStyle,
   useDerivedValue,
@@ -7,8 +7,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Joystick } from "@/components/Joystick";
-import { calcDistance, enemyVel, handleBullet } from "@/utils/utils";
-import { Text, TouchableOpacity, View } from "react-native";
+import { calcDistance, enemyCollision, enemyVel, handleBullet } from "@/utils/utils";
+import { Text, View } from "react-native";
 import {
   ACTIVATION_R,
   BULLET_RADIUS,
@@ -16,6 +16,7 @@ import {
   ENEMY_RADIUS,
   MAX_BULLETS,
   MAX_ENEMIES,
+  OUT_OF_THE_BOX,
   PLAY_HEIGHT,
   PLAY_WIDTH,
   RADIUS,
@@ -28,6 +29,9 @@ import { animate, animateEnemies } from "../logic";
 import { CircleInterface, BulletInterface } from "../types";
 import { useEffect, useState } from "react";
 import { runOnJS } from "react-native-worklets";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { router } from "expo-router";
+import gameOver from "./gameOver";
 
 let SPEED_FACTOR = 8; // Increasing will decrease the player's speed
 
@@ -36,6 +40,7 @@ export default function Wall() {
   const playerY = useSharedValue(PLAY_HEIGHT / 2);
   const velocityX = useSharedValue(0);
   const velocityY = useSharedValue(0);
+  const XP = useSharedValue(3)
 
   const cameraX = useSharedValue(-(PLAY_WIDTH / 2) + SCREEN_WIDTH / 2);
   const cameraY = useSharedValue(-(PLAY_HEIGHT / 2) + SCREEN_HEIGHT / 2);
@@ -44,17 +49,37 @@ export default function Wall() {
   const enemyYs = useSharedValue<number[]>([]);
 
   //collision
-
+  const lastHit = useSharedValue(0)
   //used for testing
   const userColor = useSharedValue("cyan");
   const animatedUserColor = useDerivedValue(() => userColor.value);
 
-  const enemyX = useSharedValue(0);
-  const enemyY = useSharedValue(0);
+  // const enemyX = useSharedValue(0); these are the niggas who have seen time
+  // const enemyY = useSharedValue(0);
 
   const lastShot = useSharedValue(0)
   const DEADZONE = SCREEN_WIDTH * 0.1;
   
+  //joystick detectionn ----------
+  // const startX = useSharedValue(0);
+  // const startY = useSharedValue(0);
+  const [stickVisible, setStickVisible] = useState<boolean>(true)
+  // const gesture = Gesture.Tap()
+  //   .onBegin((event)=>{
+  //     startX.value = event.absoluteX;
+  //     startY.value = event.absoluteY;
+  //     runOnJS(setStickVisible)(true)
+  //   })
+  //   .onEnd(()=>{runOnJS(setStickVisible)(false)})
+    //-53-20
+    // const joystickStyle = useAnimatedStyle(()=>({
+    //   position: 'absolute',
+    //   top: startY.value - 73,
+    //   left: startX.value - 73,
+    //   zIndex: 1000
+    // }))
+
+
 
   const CircleObject: CircleInterface = {
     x: playerX,
@@ -69,7 +94,7 @@ export default function Wall() {
   // Spawns enemies at the beginning
 
   useEffect(() => {
-    spawnEnemies(50);
+    spawnEnemies(10);
   }, []);
 
   function spawnEnemies(count: number) {
@@ -105,14 +130,14 @@ export default function Wall() {
 
   const enemyPositions = Array.from({ length: MAX_ENEMIES }, (_, i) =>
     useDerivedValue(() => ({
-      x: enemyXs.value[i] ?? -9999, // off-screen if not spawned
-      y: enemyYs.value[i] ?? -9999,
+      x: enemyXs.value[i] ?? OUT_OF_THE_BOX, // off-screen if not spawned
+      y: enemyYs.value[i] ?? OUT_OF_THE_BOX,
     })),
   );
   //used Array.from to create new arrays (total of max_bullets) with the defaults
   const bulletPool: BulletInterface[] = Array.from({ length: MAX_BULLETS }, (_, i) => ({
-  x: useSharedValue(-1000),
-  y: useSharedValue(-1000),
+  x: useSharedValue(OUT_OF_THE_BOX),
+  y: useSharedValue(OUT_OF_THE_BOX),
   vx: useSharedValue(0),
   vy: useSharedValue(0),
   active: useSharedValue(false),
@@ -122,18 +147,18 @@ export default function Wall() {
 const hitCount = useSharedValue(0); 
 const hitCountText = useDerivedValue(()=>hitCount.value)
 
-  const shoot = (distToEnemy: number, dx: number, dy: number) =>{
-    "worklet"
-    const bullet = bulletPool.find((e)=> !e.active.value)
-    if (bullet) {
-      const dist = distToEnemy || 1; // avoid div by zero
-      bullet.x.value = playerX.value;
-      bullet.y.value = playerY.value;
-      bullet.vx.value = (dx / dist) * BULLET_SPEED;
-      bullet.vy.value = (dy / dist) * BULLET_SPEED;
-      bullet.active.value = true;
-    }
-  }
+  // const shoot = (distToEnemy: number, dx: number, dy: number) =>{
+  //   "worklet"
+  //   const bullet = bulletPool.find((e)=> !e.active.value)
+  //   if (bullet) {
+  //     const dist = distToEnemy || 1; // avoid div by zero
+  //     bullet.x.value = playerX.value;
+  //     bullet.y.value = playerY.value;
+  //     bullet.vx.value = (dx / dist) * BULLET_SPEED;
+  //     bullet.vy.value = (dy / dist) * BULLET_SPEED;
+  //     bullet.active.value = true;
+  //   }
+  // }
 
   function handlePlayerMove(data: any) {
     // console.log(data.position.x - 53, data.position.y - 44);
@@ -153,6 +178,14 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
     }
   }
 
+  const goToGameOver = ()=>{
+    router.push('/gameOver')
+  }
+  // const onGameOVer = () =>{
+  //     router.push({pathname: '/gameOver', params:{lost: 'true'}})
+  //   }
+  
+
   // 5. Pass the player into your existing animate call. Claude the goat
   useFrameCallback((frameInfo) => {
     if (!frameInfo.timeSincePreviousFrame) return;
@@ -165,30 +198,45 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
     playerX.value += velocityX.value;
     playerY.value += velocityY.value;
 
-    // autoshoot -----
-    const dx = enemyX.value - playerX.value;
-    const dy = enemyY.value - playerY.value;
-    const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+    // autoshoot ----------
+    
+    const xs = enemyXs.value
+    const ys = enemyYs.value
 
+    let closestDist = Infinity 
+    let closestDx = 0;
+    let closestDy = 0;
 
-    // const distToEnemy = calcDistance({x: playerX.value, y: playerY.value}, {x: enemyX.value, y: enemyY.value})
+    for(let i=0; i<xs.length; i++){
+      const dx = xs[i] - playerX.value;
+      const dy = ys[i] - playerY.value;
+      const distToEnemy = Math.sqrt(dx * dx + dy * dy);
+      if(distToEnemy < closestDist){
+        closestDist = distToEnemy;
+        closestDx = dx;
+        closestDy = dy
+      }
+    }
+
     lastShot.value += frameInfo.timeSincePreviousFrame
 
-    if (distToEnemy < ACTIVATION_R && lastShot.value > SHOT_INTERVAL) {
-    lastShot.value = 0;
+    if (closestDist < ACTIVATION_R && lastShot.value > SHOT_INTERVAL) {
+      lastShot.value = 0;
 
-    const bullet = bulletPool.find((b) => !b.active.value);
-    if (bullet) {
-      const dist = distToEnemy || 1; // avoid div by zero
-      bullet.x.value = playerX.value;
-      bullet.y.value = playerY.value;
-      bullet.vx.value = (dx / dist) * BULLET_SPEED;
-      bullet.vy.value = (dy / dist) * BULLET_SPEED;
-      bullet.active.value = true;
+      const bullet = bulletPool.find((b) => !b.active.value);
+      if (bullet) {
+        const dist = closestDist || 1; // avoid div by zero
+        bullet.x.value = playerX.value;
+        bullet.y.value = playerY.value;
+        bullet.vx.value = (closestDx / dist) * BULLET_SPEED;
+        bullet.vy.value = (closestDy / dist) * BULLET_SPEED;
+        bullet.active.value = true;
+      }
     }
-  }
 
-    handleBullet(bulletPool, {x: enemyX.value, y: enemyY.value}, hitCount)
+    handleBullet(bulletPool, enemyXs, enemyYs, hitCount)
+
+    enemyCollision(enemyXs, enemyYs, playerX, playerY, XP, bulletPool, lastHit, frameInfo.timeSincePreviousFrame)
 
     if (playerScreenX < DEADZONE)
       cameraX.value = cameraX.value + (DEADZONE - playerScreenX);
@@ -210,6 +258,10 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
     // New code:
     animateEnemies(enemyXs, enemyYs, playerX, playerY);
 
+    if(enemyXs.value.length === 0 && XP.value >0){
+      runOnJS(goToGameOver)()
+    }
+
     cameraX.value = Math.min(
       0,
       Math.max(-(PLAY_WIDTH - SCREEN_WIDTH), cameraX.value),
@@ -224,16 +276,20 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
   }));
 
   return (
-    // <GestureDetector gesture={gesture}>
+   
+    // <GestureDetector gesture={gesture}> 
     <View>
-      <View
-        style={{
-          position: "absolute",
-          bottom: 180,
-          right: 50,
-          zIndex: 1000,
-        }}
-      >
+      
+        {stickVisible && (
+
+          <View
+            style={{
+              position: "absolute",
+              bottom: 180,
+              right: 50,
+              zIndex: 1000,
+            }}
+        >
         <Joystick
           onMove={(data) => handlePlayerMove(data)}
           onStop={() => {
@@ -244,28 +300,7 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
         />
       </View>
 
-          {/* for testing bullets */}
-          <View style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
-      <Text
-      style={{ color: "white", fontSize: 18 }}
-      >{`Hit count: ${hitCountText}`}</Text>
-    </View>
-
-    {/* Shoot button */}
-    {/* <TouchableOpacity
-      onPress={shoot}
-      style={{
-        position: "absolute",
-        bottom: 180,
-        left: 50,
-        zIndex: 1000,
-        backgroundColor: "red",
-        padding: 20,
-        borderRadius: 50,
-      }}
-    >
-      <Text style={{ color: "white" }}>SHOOT</Text>
-    </TouchableOpacity> */}
+        )}          
 
       <Animated.View style={cameraStyle}>
         <Canvas style={{ width: PLAY_WIDTH, height: PLAY_HEIGHT }}>
@@ -342,7 +377,8 @@ const hitCountText = useDerivedValue(()=>hitCount.value)
 
         </Canvas>
       </Animated.View>
-      {/* </GestureDetector> */}
-    </View>
+      </View>
+      // </GestureDetector>
+    
   );
 }
